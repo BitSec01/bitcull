@@ -1,0 +1,77 @@
+[package]
+name = "culling"
+version = "0.1.0"
+description = "Automatic photo culling for sports and event shooters"
+authors = ["BitSec01"]
+edition = "2021"
+rust-version = "1.77"
+# "or-later" is the FSF's own recommendation and matches the notice in
+# main.rs / lib.rs. Switch to "GPL-3.0-only" if you would rather pin it.
+license = "GPL-3.0-or-later"
+repository = "https://github.com/BitSec01/bitcull"
+readme = "../README.md"
+
+[lib]
+name = "culling_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# No `protocol-asset`: images are served through the custom `photo://` scheme
+# registered in lib.rs, which avoids whitelisting the user's filesystem.
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Image decode / encode.
+# jpeg-decoder is used directly so we can DCT-scale during decode (1/2, 1/4, 1/8),
+# which is what makes 45 MP files tractable.
+jpeg-decoder = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+kamadak-exif = "0.5"
+
+rayon = "1.10"
+walkdir = "2.5"
+anyhow = "1"
+thiserror = "2"
+parking_lot = "0.12"
+once_cell = "1"
+num_cpus = "1"
+dirs = "5"
+base64 = "0.22"
+
+# Optional cloud verification pass (tiny face crops only).
+ureq = { version = "2.10", features = ["json"] }
+
+# Face detection. tract is a pure-Rust ONNX runtime: no native DLL to download,
+# no second binary to sign or ship, and it cross-compiles to Linux cleanly.
+# YuNet is tiny (227 KB) so the speed gap versus ONNX Runtime costs us a few
+# milliseconds per frame, which is well worth the dependency simplification.
+tract-onnx = "0.21"
+
+[features]
+# Tauri's default. `custom-protocol` is enabled by `tauri build`.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = 3
+# Thin LTO gets essentially all of the runtime win of fat LTO while linking in
+# a fraction of the time, which matters because the analysis code is iterated
+# against real photographs.
+lto = "thin"
+codegen-units = 4
+strip = true
+
+# Analysis is unusably slow in a debug build, so optimise dependencies
+# (and our own image math) even when developing.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

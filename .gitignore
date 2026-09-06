@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------- JavaScript
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+
+# ---------------------------------------------------------------------- Rust
+# Cargo.lock IS committed — this is an application, not a library, and a
+# reproducible dependency set is what makes a release build reproducible.
+target/
+**/*.rs.bk
+*.pdb
+
+# --------------------------------------------------------------------- Tauri
+# Generated at build time from tauri.conf.json and the capability files.
+# capabilities/ itself is source and must stay committed.
+src-tauri/gen/schemas/
+src-tauri/WixTools/
+src-tauri/.tauri/
+
+# Updater signing keys, if the Tauri auto-updater is ever adopted.
+# A leaked private key lets anyone push a "signed" update to every user.
+*.key
+!**/*.key.example
+.tauri-signing-*
+
+# -------------------------------------------------------------------- Models
+# Fetched, never committed: YOLOX-S alone is 34 MB and would sit in every
+# clone of this repository for ever. `npm run fetch-models` downloads them,
+# and release builds bundle them into the installer.
+src-tauri/models/*.onnx
+
+# ----------------------------------------------------------------- Test data
+# Large, and not ours to redistribute.
+test_photos/
+*.CR2
+*.CR3
+*.NEF
+*.ARW
+*.RAF
+*.ORF
+*.RW2
+*.DNG
+
+# ------------------------------------------------------------------ Secrets
+.env
+.env.*
+!.env.example
+*.pem
+secrets.json
+
+# ------------------------------------------------------------------ Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.claude/settings.local.json
+
+# ----------------------------------------------------------------------- OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------------- Scratch
+*.log
+coverage/
+scratch/
+tmp/

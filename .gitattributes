@@ -1,0 +1,32 @@
+# Normalise line endings so a Windows checkout and a Linux CI runner agree.
+# Without this, `core.autocrlf` writes CRLF into files that the Ubuntu and
+# macOS release jobs then try to execute, and the bash steps fail with
+# confusing `\r: command not found` errors.
+
+* text=auto eol=lf
+
+# Anything executed by a shell must stay LF, always.
+*.sh text eol=lf
+*.mjs text eol=lf
+.github/**/*.yml text eol=lf
+
+# Windows-only files are more useful with CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary: never touch, never diff.
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.onnx binary
+*.woff binary
+*.woff2 binary
+
+# Generated; collapse it in pull request diffs.
+package-lock.json linguist-generated=true -diff
+src-tauri/Cargo.lock linguist-generated=true -diff
+
+# The licence is not this project's own code, so keep it out of language stats.
+LICENSE linguist-vendored=true
