@@ -12,6 +12,8 @@ function promScale(area: number): number {
 interface Props {
   item: Analysis | null;
   showBoxes: boolean;
+  /** Hidden on narrow windows. */
+  collapsed: boolean;
   onPick: (id: string, pick: Pick | null) => void;
   onRate: (id: string, rating: number) => void;
   onOpenLoupe: () => void;
@@ -20,6 +22,7 @@ interface Props {
 export default function DetailPanel({
   item,
   showBoxes,
+  collapsed,
   onPick,
   onRate,
   onOpenLoupe,
@@ -31,7 +34,7 @@ export default function DetailPanel({
 
   if (!item) {
     return (
-      <aside className="sidebar right">
+      <aside className={`sidebar right ${collapsed ? "collapsed" : ""}`}>
         <div className="empty">
           <p>Select a photo to see why it scored the way it did.</p>
         </div>
@@ -43,7 +46,7 @@ export default function DetailPanel({
   const meta = item.meta;
 
   return (
-    <aside className="sidebar right">
+    <aside className={`sidebar right ${collapsed ? "collapsed" : ""}`}>
       <div className="detail">
         <div className="detail-img" onClick={onOpenLoupe} title="Open loupe (Space)">
           <img

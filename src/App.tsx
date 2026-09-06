@@ -20,6 +20,19 @@ import type {
 type Filter = "all" | "keep" | "maybe" | "reject" | "picks" | "bestOnly";
 type Sort = "capture" | "scoreDesc" | "scoreAsc" | "name";
 
+/**
+ * Widths at which panels stop earning their space.
+ *
+ * Both side panels together are ~600 px. Below these the photo grid gets too
+ * narrow to review from, so a panel folds away rather than squeezing it — but
+ * only when the window actually crosses the threshold, so a deliberate toggle
+ * is never undone underneath the user.
+ */
+const LEFT_MIN = 1120;
+const RIGHT_MIN = 900;
+/** Below this the toolbar sheds its optional controls. */
+const COMPACT_MIN = 1280;
+
 const DEFAULT_SETTINGS: ScoreSettings = {
   sharpnessFloor: 0.32,
   keepThreshold: 72,
@@ -77,6 +90,9 @@ export default function App() {
   const [showBoxes, setShowBoxes] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [update, setUpdate] = useState<api.UpdateInfo | null>(null);
+  const [leftOpen, setLeftOpen] = useState(window.innerWidth >= LEFT_MIN);
+  const [rightOpen, setRightOpen] = useState(window.innerWidth >= RIGHT_MIN);
+  const [compact, setCompact] = useState(window.innerWidth < COMPACT_MIN);
 
   const refreshCache = useCallback(() => {
     api.cacheInfo().then(setCacheBytes).catch(() => {});
@@ -97,6 +113,24 @@ export default function App() {
         if (u?.newer) setUpdate(u);
       })
       .catch(() => {});
+  }, []);
+
+  // Fold panels away as the window narrows, and bring them back when it widens.
+  // Acting only on threshold *crossings* means a manual toggle survives every
+  // resize that does not change which regime the window is in.
+  useEffect(() => {
+    let prev = window.innerWidth;
+    const onResize = () => {
+      const w = window.innerWidth;
+      setCompact(w < COMPACT_MIN);
+      if (prev >= LEFT_MIN && w < LEFT_MIN) setLeftOpen(false);
+      if (prev < LEFT_MIN && w >= LEFT_MIN) setLeftOpen(true);
+      if (prev >= RIGHT_MIN && w < RIGHT_MIN) setRightOpen(false);
+      if (prev < RIGHT_MIN && w >= RIGHT_MIN) setRightOpen(true);
+      prev = w;
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -441,9 +475,19 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">◎</span> Culling
-        </div>
+        <button
+          className={`btn ghost panel-toggle ${leftOpen ? "on" : ""}`}
+          onClick={() => setLeftOpen((v) => !v)}
+          title={leftOpen ? "Hide settings" : "Show settings"}
+        >
+          ☰
+        </button>
+
+        {!compact && (
+          <div className="brand">
+            <span className="brand-mark">◎</span> Culling
+          </div>
+        )}
 
         <button className="btn" onClick={chooseFolder} disabled={busy}>
           Open folder…
@@ -537,20 +581,24 @@ export default function App() {
               </button>
             )}
 
-            <input
-              type="range"
-              min={130}
-              max={380}
-              step={10}
-              value={cardSize}
-              onChange={(e) => setCardSize(+e.target.value)}
-              style={{ width: 84 }}
-              title="Thumbnail size"
-            />
+            {!compact && (
+              <input
+                type="range"
+                min={130}
+                max={380}
+                step={10}
+                value={cardSize}
+                onChange={(e) => setCardSize(+e.target.value)}
+                style={{ width: 84 }}
+                title="Thumbnail size"
+              />
+            )}
 
-            <button className="btn" onClick={() => setShowCloud(true)}>
-              Cloud check
-            </button>
+            {!compact && (
+              <button className="btn" onClick={() => setShowCloud(true)}>
+                Cloud check
+              </button>
+            )}
             <button
               className="btn primary"
               onClick={() => setShowExport(true)}
@@ -577,6 +625,16 @@ export default function App() {
         <button className="btn ghost" onClick={() => setShowHelp(true)} title="Shortcuts">
           ?
         </button>
+
+        {items.length > 0 && (
+          <button
+            className={`btn ghost panel-toggle ${rightOpen ? "on" : ""}`}
+            onClick={() => setRightOpen((v) => !v)}
+            title={rightOpen ? "Hide the detail panel" : "Show the detail panel"}
+          >
+            ▤
+          </button>
+        )}
       </header>
 
       <div className="body">
@@ -596,6 +654,7 @@ export default function App() {
             reject: counts.reject,
             total: counts.all,
           }}
+          collapsed={!leftOpen}
         />
 
         {items.length === 0 ? (
@@ -682,6 +741,7 @@ export default function App() {
         <DetailPanel
           item={selected}
           showBoxes={showBoxes}
+          collapsed={!rightOpen}
           onPick={pick}
           onRate={rate}
           onOpenLoupe={() => {

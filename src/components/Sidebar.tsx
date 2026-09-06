@@ -76,6 +76,8 @@ interface Props {
   busy: boolean;
   /** Live verdict counts, so a change shows its effect immediately. */
   counts: { keep: number; maybe: number; reject: number; total: number };
+  /** Hidden on narrow windows. Kept mounted so its scroll position survives. */
+  collapsed: boolean;
 }
 
 export default function Sidebar({
@@ -86,6 +88,7 @@ export default function Sidebar({
   onPurgeCache,
   busy,
   counts,
+  collapsed,
 }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const set = <K extends keyof ScoreSettings>(k: K, v: ScoreSettings[K]) =>
@@ -94,7 +97,7 @@ export default function Sidebar({
   const si = strictnessIndex(settings);
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       {/* ---------------------------------------------------- what you shoot */}
       <div className="section">
         <h3>1 · What are you shooting?</h3>

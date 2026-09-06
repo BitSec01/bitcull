@@ -15,8 +15,8 @@
         "title": "Culling",
         "width": 1500,
         "height": 950,
-        "minWidth": 1080,
-        "minHeight": 700,
+        "minWidth": 680,
+        "minHeight": 520,
         "resizable": true,
         "theme": "Dark"
       }

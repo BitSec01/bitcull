@@ -81,8 +81,13 @@ button {
 
 .body {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* minmax(0, 1fr) is load-bearing. A bare `1fr` resolves its minimum from the
+     column's content, so the photo grid refuses to shrink below its natural
+     width and pushes the right-hand panel off the edge of the window — the
+     panel looked "cut off" at anything under about 1500 px. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   min-height: 0;
+  min-width: 0;
 }
 
 /* ---------------------------------------------------------------- topbar */
@@ -94,6 +99,25 @@ button {
   padding: 0 12px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--line);
+  /* Scroll rather than wrap or overflow: a wrapped toolbar changes the app's
+     row height and shifts the whole grid down. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.topbar::-webkit-scrollbar {
+  height: 0;
+}
+
+/* Controls keep their size and the spacer absorbs what is left. */
+.topbar > * {
+  flex-shrink: 0;
+}
+
+.topbar .spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .brand {
@@ -123,7 +147,7 @@ button {
   align-items: center;
   gap: 7px;
   min-width: 0;
-  max-width: 380px;
+  max-width: clamp(120px, 18vw, 380px);
   padding: 5px 10px;
   background: var(--bg-2);
   border: 1px solid var(--line);
@@ -197,6 +221,17 @@ button {
   color: var(--fg);
 }
 
+.panel-toggle {
+  padding: 5px 9px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.panel-toggle.on {
+  color: var(--fg);
+  background: var(--bg-2);
+}
+
 .btn.update-chip {
   background: var(--keep-bg);
   border-color: var(--keep);
@@ -264,18 +299,46 @@ button {
 /* --------------------------------------------------------------- sidebar */
 
 .sidebar {
-  width: 268px;
+  /* Give a little back to the photo grid on smaller windows rather than
+     holding a fixed width and squeezing the thing you are actually looking at. */
+  width: clamp(212px, 19vw, 268px);
   background: var(--bg-1);
   border-right: 1px solid var(--line);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 14px;
+  min-width: 0;
 }
 
 .sidebar.right {
-  width: 340px;
+  width: clamp(248px, 23vw, 340px);
   border-right: none;
   border-left: 1px solid var(--line);
   padding: 0;
+}
+
+/* Panels are removed from the grid entirely when collapsed, so the middle
+   column gets the space instead of a zero-width track.
+
+   Because that changes how many grid items exist, every child must be pinned
+   to its own column explicitly. Left to auto-placement, hiding the left
+   sidebar slides the photo grid into column 1 and the detail panel into
+   column 2 — which showed up as the detail panel appearing on the left with a
+   black void beside it. */
+.sidebar.collapsed {
+  display: none;
+}
+
+.body > .sidebar:not(.right) {
+  grid-column: 1;
+}
+
+.body > .grid-wrap {
+  grid-column: 2;
+}
+
+.body > .sidebar.right {
+  grid-column: 3;
 }
 
 .section {
