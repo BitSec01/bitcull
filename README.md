@@ -8,6 +8,38 @@ picks back to the matching **RAW** files.
 Built with Rust + Tauri (backend and all pixel work) and React (interface).
 Runs on Windows and Linux.
 
+![The grid, scoring a folder of sports photographs](docs/screenshots/01-grid-people.jpg)
+
+Each frame is scored on how large and how sharp its **subject** is, not on how
+sharp the picture is overall. Detected subjects are outlined; the panel on the
+right says exactly why a frame got the score it did.
+
+## Tell it what you are shooting
+
+The same folder, re-scored with one click. Nothing is re-analysed — the
+detections are already there, only the question changed.
+
+| Looking for **people** | Looking for **birds & animals** |
+| --- | --- |
+| ![](docs/screenshots/01-grid-people.jpg) | ![](docs/screenshots/02-grid-birds.jpg) |
+| Soccer frames score 84 and keep. The eagles have no recognisable subject and sink to 33–45. | The eagles are found and score 76–80. The soccer frames drop to 41–52. |
+
+Presets cover people, birds and animals, vehicles, and board sports — 80 COCO
+classes underneath, so it works for whatever you shoot next.
+
+## See what it saw
+
+![The loupe, showing detected subjects](docs/screenshots/03-loupe-subjects.jpg)
+
+Press <kbd>B</kbd> in the loupe to outline every detection with its size. Here
+the crouching player fills 12.4% of the frame and is the subject; the figures
+on the touchline are 4–6% and are not.
+
+> Screenshots use public-domain photographs from
+> [Wikimedia Commons](https://commons.wikimedia.org). The author's own test
+> images are not shown: they contain identifiable people who did not consent to
+> appearing online.
+
 ---
 
 ## The workflow it is built around

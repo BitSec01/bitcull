@@ -38,8 +38,11 @@ src-tauri/.tauri/
 src-tauri/models/*.onnx
 
 # ----------------------------------------------------------------- Test data
-# Large, and not ours to redistribute.
+# Large, and not ours to redistribute. test_photos/ also contains identifiable
+# people who have not consented to appearing online; demo_photos/ is the
+# public-domain set used for the README screenshots.
 test_photos/
+demo_photos/
 *.CR2
 *.CR3
 *.NEF
