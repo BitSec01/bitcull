@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS: ScoreSettings = {
   wFaces: 0.35,
   wComposition: 0.3,
   wSubject: 0.8,
+  subjectPolicy: "auto",
   subjectClasses: [0, 32],
   subjectConfidence: 0.35,
   burstGapSecs: 0.5,
@@ -655,6 +656,7 @@ export default function App() {
             total: counts.all,
           }}
           collapsed={!leftOpen}
+          scenery={summary?.scenery ?? false}
         />
 
         {items.length === 0 ? (

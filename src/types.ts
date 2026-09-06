@@ -2,6 +2,8 @@
 // Keep these in sync — serde uses camelCase on the wire.
 
 export type Verdict = "keep" | "maybe" | "reject";
+/** Whether a frame needs a subject at all. See `model.rs`. */
+export type SubjectPolicy = "auto" | "require" | "scenery";
 export type Severity = "good" | "warn" | "bad";
 export type Pick = "keep" | "reject";
 export type EyeState = "open" | "squint" | "closed" | "unknown";
@@ -122,6 +124,7 @@ export interface ScoreSettings {
   wFaces: number;
   wComposition: number;
   wSubject: number;
+  subjectPolicy: SubjectPolicy;
   subjectClasses: number[];
   subjectConfidence: number;
   burstGapSecs: number;
@@ -151,6 +154,8 @@ export interface RunSummary {
   durationMs: number;
   /** Set when a requested model could not be loaded. Names which one. */
   modelError: string | null;
+  /** True when the set is being judged as scenery, not as subject frames. */
+  scenery: boolean;
 }
 
 export type ExportAction = "copy" | "move" | "listOnly" | "sidecar";

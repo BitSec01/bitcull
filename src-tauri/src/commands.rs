@@ -26,10 +26,19 @@ pub struct RunSummary {
     pub duration_ms: u64,
     /// Set when a requested model could not be loaded. Names which one.
     pub model_error: Option<String>,
+    /// True when this set is being judged as scenery rather than as frames
+    /// that should contain a subject.
+    pub scenery: bool,
 }
 
-fn summarise(items: Vec<Analysis>, duration_ms: u64, model_err: Option<String>) -> RunSummary {
+fn summarise(
+    items: Vec<Analysis>,
+    duration_ms: u64,
+    model_err: Option<String>,
+    settings: &ScoreSettings,
+) -> RunSummary {
     use crate::model::Verdict;
+    let scenery = crate::score::is_scenery(&items, settings);
     let keep = items.iter().filter(|a| a.verdict == Verdict::Keep).count();
     let reject = items.iter().filter(|a| a.verdict == Verdict::Reject).count();
     let maybe = items.len() - keep - reject;
@@ -47,6 +56,7 @@ fn summarise(items: Vec<Analysis>, duration_ms: u64, model_err: Option<String>) 
         groups,
         duration_ms,
         model_error: model_err,
+        scenery,
         items,
     }
 }
@@ -130,10 +140,12 @@ pub async fn analyze_folder(
     *state.folder.lock() = Some(folder_path);
     *state.items.write() = items.clone();
 
+    let settings_now = state.settings.lock().clone();
     Ok(summarise(
         items,
         started.elapsed().as_millis() as u64,
         model_err,
+        &settings_now,
     ))
 }
 
@@ -161,7 +173,7 @@ pub fn update_settings(state: State<'_, AppState>, settings: ScoreSettings) -> R
     crate::score::rescore_all(&mut items, &settings);
     let out = items.clone();
     drop(items);
-    summarise(out, 0, None)
+    summarise(out, 0, None, &settings)
 }
 
 #[tauri::command]
@@ -201,7 +213,7 @@ pub fn set_picks(state: State<'_, AppState>, ids: Vec<String>, pick: Option<Pick
     crate::score::rescore_all(&mut items, &settings);
     let out = items.clone();
     drop(items);
-    summarise(out, 0, None)
+    summarise(out, 0, None, &settings)
 }
 
 #[tauri::command]

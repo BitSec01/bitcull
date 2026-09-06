@@ -32,6 +32,9 @@ serde_json = "1"
 # jpeg-decoder is used directly so we can DCT-scale during decode (1/2, 1/4, 1/8),
 # which is what makes 45 MP files tractable.
 jpeg-decoder = "0.3"
+# RAW files reach 120 MB; mapping beats reading them into every worker thread.
+memmap2 = "0.9"
+memchr = "2"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 kamadak-exif = "0.5"
 

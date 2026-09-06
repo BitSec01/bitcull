@@ -29,6 +29,7 @@ pub mod hash;
 pub mod metrics;
 pub mod model;
 pub mod pipeline;
+pub mod raw;
 pub mod scan;
 pub mod score;
 pub mod subjects;

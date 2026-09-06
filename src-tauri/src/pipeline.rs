@@ -172,6 +172,7 @@ fn analyse_one(
 
     let smap = metrics::sharpness_map(&gray);
     let (motion, angle) = metrics::motion_blur(&gray);
+    let (tilt, tilt_strength) = metrics::horizon(&gray);
 
     let metrics_out = Metrics {
         sharpness_raw: smap.peak,
@@ -180,6 +181,9 @@ fn analyse_one(
         sharpness_subject: 0.0, // filled in below when a face is found
         focus_x: smap.focus_x,
         focus_y: smap.focus_y,
+        detail_coverage: metrics::detail_coverage(&smap),
+        horizon_tilt: tilt,
+        horizon_strength: tilt_strength,
         motion_blur: motion,
         motion_angle: angle,
         exposure: metrics::exposure(&gray),

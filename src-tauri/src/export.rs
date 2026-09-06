@@ -100,6 +100,17 @@ fn resolve(
                 resolved.push((PathBuf::from(&a.meta.path), (*a).clone()));
             }
         }
+        // Culling a folder of RAW files directly: the "RAW" for each item is
+        // the item itself, so there is nothing to match against.
+        ExportTarget::Raw
+            if selected
+                .iter()
+                .all(|a| scan::RAW_EXTS.contains(&a.meta.ext.as_str())) =>
+        {
+            for a in selected {
+                resolved.push((PathBuf::from(&a.meta.path), (*a).clone()));
+            }
+        }
         ExportTarget::Raw => {
             let folder = req
                 .raw_folder

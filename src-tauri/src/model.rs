@@ -72,6 +72,15 @@ pub struct Metrics {
     /// the wrong thing" diagnostics.
     pub focus_x: f32,
     pub focus_y: f32,
+    /// Fraction of tiles that carry real detail. High means the frame is sharp
+    /// corner to corner, which is what a landscape wants; low means only part
+    /// of it is in focus.
+    pub detail_coverage: f32,
+    /// Degrees the dominant near-horizontal line sits off level. Signed.
+    pub horizon_tilt: f32,
+    /// How much gradient energy that line accounts for, 0..1. Below ~0.15
+    /// there is no horizon and the tilt is meaningless.
+    pub horizon_strength: f32,
     /// 0..1. High means gradients are strongly oriented in one direction,
     /// i.e. directional smear rather than uniform defocus.
     pub motion_blur: f32,
@@ -260,6 +269,24 @@ impl Analysis {
     }
 }
 
+/// How much the presence of a subject should matter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SubjectPolicy {
+    /// Decide from the shoot: if hardly anything has a subject, it is scenery.
+    Auto,
+    /// A frame without a subject is a miss, and is marked down for it.
+    Require,
+    /// Judge every frame on light, tone and sharpness alone.
+    Scenery,
+}
+
+impl Default for SubjectPolicy {
+    fn default() -> Self {
+        SubjectPolicy::Auto
+    }
+}
+
 /// Tunables the user can move in the sidebar. Re-scoring with new settings is
 /// cheap because it never re-reads pixels.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -279,6 +306,8 @@ pub struct ScoreSettings {
     /// How much the subject drives the score, 0 (ignore it, judge the frame on
     /// technical merit alone) .. 1 (the subject is the photo).
     pub w_subject: f32,
+    /// Whether a frame needs a subject at all.
+    pub subject_policy: SubjectPolicy,
     /// COCO class ids that count as "the subject" for this shoot.
     pub subject_classes: Vec<u16>,
     /// Detections below this confidence are ignored.
@@ -318,6 +347,7 @@ impl Default for ScoreSettings {
             // record shots full of in-focus grass — the exact frames you do
             // not want at the top.
             w_subject: 0.8,
+            subject_policy: SubjectPolicy::Auto,
             // People, and the things people chase.
             subject_classes: vec![0, 32],
             subject_confidence: 0.35,

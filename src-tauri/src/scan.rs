@@ -30,8 +30,14 @@ pub const RAW_EXTS: &[&str] = &[
     "rwl",  // Leica
 ];
 
+/// Everything the app can open: proxies and RAW files alike.
+///
+/// RAW is read through its embedded preview (see `raw.rs`), so culling a
+/// folder of CR3s works exactly like culling a folder of JPEGs.
 pub fn is_image(path: &Path) -> bool {
-    ext_lower(path).map_or(false, |e| IMAGE_EXTS.contains(&e.as_str()))
+    ext_lower(path).map_or(false, |e| {
+        IMAGE_EXTS.contains(&e.as_str()) || RAW_EXTS.contains(&e.as_str())
+    })
 }
 
 pub fn is_raw(path: &Path) -> bool {
@@ -148,10 +154,25 @@ pub fn read_meta(path: &Path) -> Result<PhotoMeta> {
         focal_len: None,
     };
 
+    let mut got_exif = false;
     if let Ok(file) = File::open(path) {
         let mut reader = BufReader::new(file);
         if let Ok(exif) = exif::Reader::new().read_from_container(&mut reader) {
             fill_from_exif(&mut meta, &exif);
+            got_exif = true;
+        }
+    }
+
+    // TIFF-based RAWs (CR2, NEF, ARW) parse directly above. CR3 is ISO-BMFF
+    // and does not, so fall back to the EXIF carried inside the embedded
+    // preview — which is where the capture time lives, and burst grouping
+    // needs it.
+    if !got_exif && is_raw(path) {
+        if let Ok(jpeg) = crate::raw::extract_preview(path) {
+            let mut cur = std::io::Cursor::new(&jpeg);
+            if let Ok(exif) = exif::Reader::new().read_from_container(&mut cur) {
+                fill_from_exif(&mut meta, &exif);
+            }
         }
     }
 

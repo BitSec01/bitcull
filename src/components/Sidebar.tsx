@@ -78,6 +78,8 @@ interface Props {
   counts: { keep: number; maybe: number; reject: number; total: number };
   /** Hidden on narrow windows. Kept mounted so its scroll position survives. */
   collapsed: boolean;
+  /** Whether the backend is judging this set as scenery. */
+  scenery: boolean;
 }
 
 export default function Sidebar({
@@ -89,6 +91,7 @@ export default function Sidebar({
   busy,
   counts,
   collapsed,
+  scenery,
 }: Props) {
   const [advanced, setAdvanced] = useState(false);
   const set = <K extends keyof ScoreSettings>(k: K, v: ScoreSettings[K]) =>
@@ -107,7 +110,9 @@ export default function Sidebar({
         </p>
         <div className="preset-grid">
           {SUBJECT_PRESETS.map((p) => {
-            const on = p.classes.every((c) => settings.subjectClasses.includes(c));
+            const on =
+              scenery === false &&
+              p.classes.every((c) => settings.subjectClasses.includes(c));
             return (
               <button
                 key={p.key}
@@ -118,19 +123,58 @@ export default function Sidebar({
                   const cur = new Set(settings.subjectClasses);
                   if (on) p.classes.forEach((c) => cur.delete(c));
                   else p.classes.forEach((c) => cur.add(c));
-                  set("subjectClasses", [...cur].sort((a, b) => a - b));
+                  onChange({
+                    ...settings,
+                    subjectClasses: [...cur].sort((a, b) => a - b),
+                    // Picking a subject means this is not scenery.
+                    subjectPolicy: "auto",
+                  });
                 }}
               >
                 {p.label}
               </button>
             );
           })}
+
+          <button
+            className={`preset wide ${scenery ? "on" : ""}`}
+            disabled={busy}
+            title={
+              scenery
+                ? "Judge these as subject photos instead"
+                : "Landscapes, architecture, abstracts — anything with no single subject"
+            }
+            onClick={() =>
+              set(
+                "subjectPolicy",
+                // Three states, so the button always does something: turn an
+                // explicit choice back to automatic, override an automatic
+                // scenery verdict, or switch scenery on.
+                settings.subjectPolicy === "scenery"
+                  ? "auto"
+                  : scenery
+                    ? "require"
+                    : "scenery",
+              )
+            }
+          >
+            Scenery — no single subject
+          </button>
         </div>
-        {settings.subjectClasses.length === 0 && (
-          <div className="warn-note">
-            Nothing selected, so no frame has a subject and scores fall back to
-            technical quality only.
+
+        {scenery ? (
+          <div className="note">
+            {settings.subjectPolicy === "scenery"
+              ? "Judging every frame on sharpness across the frame, tonal range and a level horizon."
+              : "Almost nothing here has a recognisable subject, so these are being judged as scenery — sharpness across the frame, tonal range and a level horizon."}
           </div>
+        ) : (
+          settings.subjectClasses.length === 0 && (
+            <div className="warn-note">
+              Nothing selected, so no frame has a subject and scores fall back
+              to technical quality only.
+            </div>
+          )
         )}
       </div>
 

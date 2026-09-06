@@ -33,6 +33,9 @@ pub struct Norms {
     pub shift: f32,
     /// Every frame's subject sharpness, sorted, for percentile ranking.
     sorted: Vec<f32>,
+    /// True when this set should be judged as scenery rather than as frames
+    /// that are supposed to contain a subject.
+    pub scenery: bool,
 }
 
 impl Default for Norms {
@@ -40,6 +43,7 @@ impl Default for Norms {
         Self {
             shift: 0.0,
             sorted: Vec::new(),
+            scenery: false,
         }
     }
 }
@@ -66,17 +70,47 @@ impl Norms {
     }
 }
 
+/// Decide whether a set is scenery: mostly frames with nothing the detector
+/// recognises.
+///
+/// This is a property of the *shoot*, not of individual frames. Deciding per
+/// frame would be wrong in the other direction — in a football set, a frame
+/// where you missed the players entirely is a failure, not a landscape.
+pub fn is_scenery(items: &[Analysis], settings: &ScoreSettings) -> bool {
+    match settings.subject_policy {
+        crate::model::SubjectPolicy::Scenery => return true,
+        crate::model::SubjectPolicy::Require => return false,
+        crate::model::SubjectPolicy::Auto => {}
+    }
+    let usable: Vec<&Analysis> = items.iter().filter(|a| a.error.is_none()).collect();
+    if usable.is_empty() {
+        return false;
+    }
+    let with = usable
+        .iter()
+        .filter(|a| a.subject_stats.count > 0 && a.subject_stats.main_area > 0.0)
+        .count();
+    // Under a fifth carrying a subject means the detector is not the right
+    // tool for this material.
+    (with as f32 / usable.len() as f32) < 0.20
+}
+
 /// Build normalisation stats from analysed photos.
 pub fn compute_norms(items: &[Analysis], settings: &ScoreSettings) -> Norms {
+    let scenery = is_scenery(items, settings);
+
     let mut vals: Vec<f32> = items
         .iter()
         .filter(|a| a.error.is_none())
-        .map(subject_sharpness)
+        .map(|a| if scenery { scenery_sharpness(a) } else { subject_sharpness(a) })
         .filter(|v| *v > 0.0)
         .collect();
 
     if vals.len() < 12 {
-        return Norms::default();
+        return Norms {
+            scenery,
+            ..Norms::default()
+        };
     }
     vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -95,7 +129,13 @@ pub fn compute_norms(items: &[Analysis], settings: &ScoreSettings) -> Norms {
     Norms {
         shift,
         sorted: vals,
+        scenery,
     }
+}
+
+/// For scenery, sharpness means the whole frame, not one region of it.
+fn scenery_sharpness(a: &Analysis) -> f32 {
+    a.metrics.sharpness_peak
 }
 
 /// The sharpness figure that actually matters.
@@ -149,7 +189,11 @@ pub fn score_photo(a: &mut Analysis, norms: &Norms, s: &ScoreSettings) {
         return;
     }
 
-    let sharp_raw = subject_sharpness(a);
+    let sharp_raw = if norms.scenery {
+        scenery_sharpness(a)
+    } else {
+        subject_sharpness(a)
+    };
     // Absolute, calibrated. This is the only thing allowed to call a frame soft.
     let sharp = normalise(sharp_raw, norms);
     // Where the frame sits within this shoot. Used for ranking only.
@@ -400,8 +444,22 @@ pub fn score_photo(a: &mut Analysis, norms: &Norms, s: &ScoreSettings) {
     // in-focus grass scores higher on it than a tight action frame.
     let st = &a.subject_stats;
     let has_subject = st.count > 0 && st.main_area > 0.0;
+    // Extra deductions raised while examining the subject or the scene.
+    let mut comp_extra = 0.0f32;
 
-    let subject_component = if has_subject {
+    let subject_component = if norms.scenery {
+        // Scenery: there is no subject to find, so judge the frame itself.
+        //
+        // A landscape wants detail corner to corner rather than one sharp
+        // region, real tonal range rather than haze, and a level horizon. The
+        // subject-shaped scoring collapsed every one of these frames to the
+        // same ~44 because "no recognisable subject" fired on all of them.
+        let coverage = a.metrics.detail_coverage;
+        let tonal = (a.metrics.exposure.stddev / 0.22).clamp(0.0, 1.0);
+        let depth = ((coverage - 0.25) / 0.55).clamp(0.0, 1.0);
+
+        45.0 + 55.0 * (0.50 * sharp_rank + 0.30 * depth + 0.20 * tonal)
+    } else if has_subject {
         let prominence = crate::subjects::prominence(st.main_area);
 
         // Did focus land on the subject, or on the turf behind them? Both
@@ -426,7 +484,36 @@ pub fn score_photo(a: &mut Analysis, norms: &Norms, s: &ScoreSettings) {
         42.0
     };
 
-    if has_subject {
+    if norms.scenery {
+        // A tilted horizon is obvious to a viewer and trivial to correct, so
+        // it is worth naming. Only when there is actually a horizon to tilt.
+        let tilt = a.metrics.horizon_tilt.abs();
+        if a.metrics.horizon_strength > 0.18 && tilt > 1.2 {
+            let p = (tilt / 6.0).clamp(0.0, 1.0) * 14.0;
+            a.reasons.push(Reason {
+                code: "tilted".into(),
+                label: format!("Horizon off level by {tilt:.1}°"),
+                severity: if tilt > 3.0 { Severity::Bad } else { Severity::Warn },
+                delta: -p,
+            });
+            comp_extra -= p;
+        }
+        if a.metrics.detail_coverage > 0.7 {
+            a.reasons.push(Reason {
+                code: "deep-focus".into(),
+                label: "Sharp corner to corner".into(),
+                severity: Severity::Good,
+                delta: 0.0,
+            });
+        } else if a.metrics.detail_coverage < 0.25 {
+            a.reasons.push(Reason {
+                code: "thin-focus".into(),
+                label: "Little of the frame is sharp".into(),
+                severity: Severity::Warn,
+                delta: 0.0,
+            });
+        }
+    } else if has_subject {
         let pct = st.main_area * 100.0;
         if pct >= 8.0 {
             a.reasons.push(Reason {
@@ -461,6 +548,7 @@ pub fn score_photo(a: &mut Analysis, norms: &Norms, s: &ScoreSettings) {
         });
     }
 
+
     // --- Composition of the final score ----------------------------------
     //
     // Sharpness sets the baseline and everything else deducts from it. An
@@ -478,7 +566,9 @@ pub fn score_photo(a: &mut Analysis, norms: &Norms, s: &ScoreSettings) {
     let penalty = (100.0 - exposure_component) * s.w_exposure
         + (100.0 - face_component) * s.w_faces
         + (100.0 - comp) * s.w_composition
-        + motion_penalty;
+        + motion_penalty
+        // Scene-level faults (a tilted horizon) are already scaled to points.
+        - comp_extra;
 
     let final_score = (base - penalty).clamp(0.0, 100.0);
     a.score = final_score;

@@ -316,6 +316,87 @@ pub fn motion_blur(gray: &Gray) -> (f32, f32) {
     (aniso, angle)
 }
 
+/// Find the dominant near-horizontal line and report how far off level it is.
+///
+/// A tilted horizon is one of the few landscape faults that is both obvious to
+/// a viewer and trivially fixable, so it is worth calling out. A horizontal
+/// edge produces gradients pointing *vertically*, so we look for a peak in
+/// gradient orientation near 90 degrees.
+///
+/// Returns `(tilt in degrees, strength 0..1)`. Strength says how much of the
+/// frame's gradient energy sits in that near-horizontal band — below about 0.15
+/// there is no horizon to speak of and the tilt means nothing.
+pub fn horizon(gray: &Gray) -> (f32, f32) {
+    let (w, h) = (gray.w, gray.h);
+    if w < 8 || h < 8 {
+        return (0.0, 0.0);
+    }
+
+    // 1 degree resolution over 60..120 degrees. A 2 degree tilt is visible, so
+    // the 5 degree bins used for motion blur are far too coarse here.
+    const LO: usize = 60;
+    const HI: usize = 120;
+    let mut band = [0f64; HI - LO];
+    let mut total = 0f64;
+
+    let step = ((w.max(h) / 512).max(1)) as usize;
+    for y in (1..h - 1).step_by(step) {
+        for x in (1..w - 1).step_by(step) {
+            let gx = gray.at(x + 1, y) - gray.at(x - 1, y);
+            let gy = gray.at(x, y + 1) - gray.at(x, y - 1);
+            let mag = (gx * gx + gy * gy).sqrt();
+            if mag < 0.03 {
+                continue;
+            }
+            let mut ang = gy.atan2(gx).to_degrees();
+            if ang < 0.0 {
+                ang += 180.0;
+            }
+            total += mag as f64;
+            let a = ang as usize;
+            if (LO..HI).contains(&a) {
+                band[a - LO] += mag as f64;
+            }
+        }
+    }
+
+    if total <= 0.0 {
+        return (0.0, 0.0);
+    }
+
+    let (mut peak, mut peak_i) = (0f64, 0usize);
+    for (i, v) in band.iter().enumerate() {
+        if *v > peak {
+            peak = *v;
+            peak_i = i;
+        }
+    }
+    if peak <= 0.0 {
+        return (0.0, 0.0);
+    }
+
+    // Parabolic interpolation around the peak for sub-degree precision.
+    let y0 = if peak_i > 0 { band[peak_i - 1] } else { 0.0 };
+    let y2 = if peak_i + 1 < band.len() { band[peak_i + 1] } else { 0.0 };
+    let denom = y0 - 2.0 * peak + y2;
+    let offset = if denom.abs() > 1e-9 {
+        (0.5 * (y0 - y2) / denom).clamp(-1.0, 1.0)
+    } else {
+        0.0
+    };
+
+    let angle = LO as f32 + peak_i as f32 + offset as f32;
+    let tilt = angle - 90.0;
+
+    // Strength: energy within +/-6 degrees of the peak, against all gradients.
+    let lo_i = peak_i.saturating_sub(6);
+    let hi_i = (peak_i + 7).min(band.len());
+    let near: f64 = band[lo_i..hi_i].iter().sum();
+    let strength = (near / total) as f32;
+
+    (tilt, strength.clamp(0.0, 1.0))
+}
+
 /// Rough noise estimate from the median absolute deviation of a high-pass
 /// residual. Correlates well enough with ISO to catch pushed frames.
 pub fn noise(gray: &Gray) -> f32 {

@@ -104,6 +104,23 @@ window until `examples/gaps.rs` showed continuous drive fires every
 0.06–0.12 s with a near-empty band before 0.25 s. At 2 s the longest unbroken
 run was 54 frames — a whole attacking move in one stack. It is now 0.5 s.
 
+**Scenery is a different question, not a lower score.** Judging a landscape as
+though it should have contained a subject rejected 90% of a landscape folder
+and bunched every score between 44 and 50 — the `no-subject` penalty fired on
+everything, so nothing was distinguishable from anything else. Frames with
+nothing recognisable are judged on frame-wide sharpness, tonal range and
+horizon level instead. The decision is made **per shoot** (`score::is_scenery`,
+under 20% of frames carrying a subject), never per frame: in a football set a
+frame where you missed the players is a failure, not a landscape.
+
+**RAW means the embedded preview, not the sensor data.** Demosaicing would be
+slow and would not look like the photograph. `raw.rs` scans the container for
+JPEG streams and validates each by parsing it, which is format-agnostic —
+TIFF-based CR2/NEF/ARW and BMFF-based CR3 all work through the same path. The
+validation is what makes it safe: sensor data is full of `FF D8 FF` sequences
+that do not parse as JPEG. CR3 also needs its EXIF read from inside the
+preview, since ordinary EXIF parsers cannot read its container.
+
 **`WORK_SIZE` changes the Laplacian scale.** Laplacian variance is
 resolution-dependent; a smaller working size raises it through aliasing. The
 constants in `metrics.rs` (`SHARP_LOG_LO` / `SHARP_LOG_HI`) assume 3072 px.

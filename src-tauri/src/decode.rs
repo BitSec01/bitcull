@@ -37,6 +37,15 @@ impl Gray {
 
 /// Read image dimensions without decoding pixel data.
 pub fn probe_dimensions(path: &Path) -> Result<(u32, u32)> {
+    if crate::scan::is_raw(path) {
+        // Report the preview's size: that is the image being judged, and the
+        // sensor dimensions would make the detection boxes land wrong.
+        let jpeg = crate::raw::extract_preview(path)?;
+        let mut dec = jpeg_decoder::Decoder::new(std::io::Cursor::new(&jpeg));
+        dec.read_info()?;
+        let info = dec.info().ok_or_else(|| anyhow!("no jpeg info"))?;
+        return Ok((info.width as u32, info.height as u32));
+    }
     if is_jpeg(path) {
         let file = File::open(path)?;
         let mut dec = jpeg_decoder::Decoder::new(BufReader::new(file));
@@ -64,7 +73,12 @@ fn is_jpeg(path: &Path) -> bool {
 /// steps, and progressive JPEGs do not support it at all — so callers that
 /// need an exact size must resample afterwards.
 pub fn decode_scaled(path: &Path, target_long_edge: u32) -> Result<Rgb8> {
-    if is_jpeg(path) {
+    if crate::scan::is_raw(path) {
+        // RAW files are judged by their embedded camera-rendered preview.
+        let jpeg = crate::raw::extract_preview(path)?;
+        decode_jpeg_bytes(&jpeg, target_long_edge)
+            .with_context(|| format!("decode embedded preview of {}", path.display()))
+    } else if is_jpeg(path) {
         decode_jpeg_scaled(path, target_long_edge)
     } else {
         let img = image::ImageReader::open(path)?
@@ -94,9 +108,17 @@ pub fn decode_scaled(path: &Path, target_long_edge: u32) -> Result<Rgb8> {
 
 fn decode_jpeg_scaled(path: &Path, target_long_edge: u32) -> Result<Rgb8> {
     let file = File::open(path).with_context(|| format!("open {}", path.display()))?;
-    let mut dec = jpeg_decoder::Decoder::new(BufReader::new(file));
-    dec.read_info()
-        .with_context(|| format!("read jpeg header {}", path.display()))?;
+    decode_jpeg_reader(BufReader::new(file), target_long_edge)
+}
+
+/// Decode a JPEG already in memory — used for RAW embedded previews.
+pub fn decode_jpeg_bytes(bytes: &[u8], target_long_edge: u32) -> Result<Rgb8> {
+    decode_jpeg_reader(std::io::Cursor::new(bytes), target_long_edge)
+}
+
+fn decode_jpeg_reader<R: std::io::Read>(reader: R, target_long_edge: u32) -> Result<Rgb8> {
+    let mut dec = jpeg_decoder::Decoder::new(reader);
+    dec.read_info().context("read jpeg header")?;
     let info = dec.info().ok_or_else(|| anyhow!("no jpeg info"))?;
 
     let (fw, fh) = (info.width as u32, info.height as u32);
@@ -114,7 +136,7 @@ fn decode_jpeg_scaled(path: &Path, target_long_edge: u32) -> Result<Rgb8> {
 
     let pixels = dec
         .decode()
-        .with_context(|| format!("decode {}", path.display()))?;
+        .context("decode jpeg")?;
     let info = dec.info().ok_or_else(|| anyhow!("no jpeg info after decode"))?;
     let (w, h) = (info.width as u32, info.height as u32);
 
@@ -150,8 +172,7 @@ fn decode_jpeg_scaled(path: &Path, target_long_edge: u32) -> Result<Rgb8> {
 
     if data.len() < (w as usize * h as usize * 3) {
         return Err(anyhow!(
-            "short pixel buffer for {} ({} bytes for {}x{})",
-            path.display(),
+            "short pixel buffer ({} bytes for {}x{})",
             data.len(),
             w,
             h

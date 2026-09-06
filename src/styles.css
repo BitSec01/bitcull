@@ -464,6 +464,21 @@ button {
   color: var(--reject);
 }
 
+.preset.wide {
+  grid-column: 1 / -1;
+}
+
+.note {
+  margin-top: 9px;
+  padding: 7px 9px;
+  border-left: 2px solid var(--accent);
+  background: rgba(96, 165, 250, 0.1);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fg-dim);
+}
+
 .warn-note {
   margin-top: 9px;
   padding: 7px 9px;

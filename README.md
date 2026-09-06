@@ -1,9 +1,9 @@
 # Culling
 
 Automatic photo culling for sports and event shooters. Point it at a folder of
-JPEGs, and it scores every frame for focus, exposure and eye state, groups
-burst sequences so you only judge the best of each, and then resolves your
-picks back to the matching **RAW** files.
+JPEGs — or of RAW files — and it scores every frame on how large and how sharp
+its subject is, groups burst sequences so you only judge the best of each, and
+then resolves your picks back to the matching **RAW** files.
 
 Built with Rust + Tauri (backend and all pixel work) and React (interface).
 Runs on Windows and Linux.
@@ -22,10 +22,32 @@ detections are already there, only the question changed.
 | Looking for **people** | Looking for **birds & animals** |
 | --- | --- |
 | ![](docs/screenshots/01-grid-people.jpg) | ![](docs/screenshots/02-grid-birds.jpg) |
-| Soccer frames score 84 and keep. The eagles have no recognisable subject and sink to 33–45. | The eagles are found and score 76–80. The soccer frames drop to 41–52. |
+| Soccer frames score 84 and keep. The eagles have no recognisable subject and sink to 33–45. | The eagles are found and score 75–80. The soccer frames drop to 45–52. |
 
 Presets cover people, birds and animals, vehicles, and board sports — 80 COCO
 classes underneath, so it works for whatever you shoot next.
+
+## Landscapes, and RAW files
+
+![RAW files being culled as scenery](docs/screenshots/04-raw-scenery.jpg)
+
+**Scenery.** A landscape has no subject to find, and scoring one as though it
+should have had a subject was useless — an early version rejected 90% of a
+landscape folder and bunched every score between 44 and 50. Frames with nothing
+recognisable in them are now judged on sharpness across the frame, tonal range
+and a level horizon instead. That decision is made per shoot rather than per
+frame, and can be forced either way, because in a football set a frame where you
+missed the players is a failure, not a landscape.
+
+**RAW.** Point it at CR3, CR2, NEF, ARW, DNG, RAF, ORF, RW2 and the rest, and it
+reads them directly. Not by demosaicing — by pulling out the JPEG preview the
+camera already rendered, which is both what the back of the camera showed you
+and what makes Photo Mechanic feel instant. On a Canon R5 that preview is the
+full 8192×5464 frame, and extracting it takes about 15 ms.
+
+Full EXIF comes through, including from CR3, whose ISO-BMFF container ordinary
+EXIF parsers cannot read — the metadata is taken from inside the preview
+instead.
 
 ## See what it saw
 
@@ -384,6 +406,7 @@ src-tauri/src/
   decode.rs     scaled JPEG decode, orientation, resize, crop
   metrics.rs    sharpness map, exposure, motion blur, noise
   hash.rs       pHash / dHash / signature
+  raw.rs        embedded JPEG preview extraction from RAW containers
   faces.rs      YuNet detection + eye-state estimation
   subjects.rs   YOLOX subject detection, prominence and isolation
   group.rs      burst and near-duplicate grouping
